@@ -2,8 +2,9 @@ import asyncio
 import logging
 import os
 import sqlite3
-from aiohttp import web, ClientSession
+from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
     InlineKeyboardMarkup,
@@ -34,11 +35,10 @@ CHANNELS = [
     },
 ]
 
-# --- BOTNI TO'G'RI YARATISH (faqat bir marta!) ---
-bot = Bot(
-    token=BOT_TOKEN,
-    session=ClientSession(trust_env=True),
-)
+# --- BOTNI TO'G'RI YARATISH ---
+# AiohttpSession ishlatiladi — u event loopni o'zi boshqaradi
+session = AiohttpSession()
+bot = Bot(token=BOT_TOKEN, session=session)
 dp = Dispatcher()
 
 # --- DATABASE ---
@@ -262,16 +262,15 @@ async def start_web_server():
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.getenv("PORT", 8080))
-    site = web.TCPSite(runner, "0.0.0.0", port)
+    site = web.TCPSite(runner, "0.0.0.0", port)  # 0.0.0.0 va $PORT ishlatiladi [citation:7]
     await site.start()
     logging.info(f"Web server {port}-portda ishga tushdi")
 
 
 async def main():
     print("Bot va Admin Panel ishga tushdi...")
-    # Web serverni parallel ishga tushirish
+    # Web serverni va botni parallel ishga tushirish [citation:4][citation:8]
     await start_web_server()
-    # Botni polling rejimida ishga tushirish
     await dp.start_polling(bot)
 
 
