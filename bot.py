@@ -223,9 +223,8 @@ async def list_channels(message: types.Message):
         await message.answer("📭 Hozircha majburiy kanallar yo'q.\n\n➕ Kanal qo'shish uchun tugmani bosing.")
         return
     await message.answer(
-        "📢 **Majburiy kanallar ro'yxati:**\n\nO'chirish uchun kanal nomini bosing:",
-        reply_markup=channels_keyboard(channels),
-        parse_mode="Markdown"
+        "📢 Majburiy kanallar ro'yxati:\n\nO'chirish uchun kanal nomini bosing:",
+        reply_markup=channels_keyboard(channels)
     )
 
 @dp.callback_query(F.data.startswith("del_ch_"))
@@ -284,11 +283,11 @@ async def add_channel_url(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
         f"✅ Kanal qo'shildi!\n\n"
-        f"🆔 ID: `{data['channel_id']}`\n"
+        f"🆔 ID: <code>{data['channel_id']}</code>\n"
         f"📝 Nomi: {data['name']}\n"
         f"🔗 Havola: {message.text}",
         reply_markup=admin_keyboard(),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 # --- OBUNA TEKSHIRUV ---
