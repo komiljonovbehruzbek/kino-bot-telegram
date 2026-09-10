@@ -335,7 +335,12 @@ async def main():
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
 
+    async def health_check(request):
+        return web.Response(text="Bot 24/7 faol ishlamoqda!")
+
     app = web.Application()
+    app.router.add_get("/", health_check)  # Render health check uchun
+
     webhook_requests_handler = SimpleRequestHandler(
         dispatcher=dp,
         bot=bot,
