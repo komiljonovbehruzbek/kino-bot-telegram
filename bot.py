@@ -1,45 +1,50 @@
 import asyncio
 import logging
+import os
 import sqlite3
+from aiohttp import web, ClientSession
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart, Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+)
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiohttp import web
-
-# Render beradigan portni olish (bo'lmasa 8080 ishlatadi)
-import os
 
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = "8915091466:AAEFRagvpxXnao-TqfznNz3Y3npPdjfWwAY"
-ADMIN_ID = 6449321994
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8915091466:AAEFRagvpxXnao-TqfznNz3Y3npPdjfWwAY")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "6449321994"))
 
-# --- BIR NECHTA KANALLAR RO'YXATI ---
-# Har bir kanal uchun: ID, nomi va taklif havolasi (invite link/username)
+# --- KANALLAR RO'YXATI ---
 CHANNELS = [
     {
         "id": -1004489090250,
         "name": "1-Kanal (Kino Olam)",
-        "url": "https://t.me/+_CKO-gy8fPQ4OWE6"
+        "url": "https://t.me/+_CKO-gy8fPQ4OWE6",
     },
     {
         "id": -1002198373500,
         "name": "2-Kanal (Shaxsiy)",
-        "url": "https://t.me/dasturlash_nam"
-    }
+        "url": "https://t.me/dasturlash_nam",
+    },
 ]
 
-bot = Bot(token=BOT_TOKEN)
+# --- BOTNI TO'G'RI YARATISH (faqat bir marta!) ---
+bot = Bot(
+    token=BOT_TOKEN,
+    session=ClientSession(trust_env=True),
+)
 dp = Dispatcher()
 
-# --- DATABASE (SQLITE) SOZLAMALARI ---
+# --- DATABASE ---
 conn = sqlite3.connect("kino_bot.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Jadvallarni yaratish
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY
@@ -53,35 +58,39 @@ CREATE TABLE IF NOT EXISTS movies (
 """)
 conn.commit()
 
-# --- FSM (STATES) XABAR TARQATISH UCHUN ---
+
+# --- FSM ---
 class BroadcastState(StatesGroup):
     waiting_for_message = State()
 
-# --- YORDAMCHI FUNKSIYALAR ---
 
+# --- YORDAMCHI FUNKSIYALAR ---
 def add_user(user_id: int):
-    """Foydalanuvchini bazaga qo'shish."""
     cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
     conn.commit()
 
+
 def get_stats():
-    """Statistikani olish."""
     cursor.execute("SELECT COUNT(*) FROM users")
     users_count = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM movies")
     movies_count = cursor.fetchone()[0]
     return users_count, movies_count
 
+
 def add_movie(code: str, file_id: str):
-    """Kino qo'shish."""
-    cursor.execute("INSERT OR REPLACE INTO movies (code, file_id) VALUES (?, ?)", (code, file_id))
+    cursor.execute(
+        "INSERT OR REPLACE INTO movies (code, file_id) VALUES (?, ?)",
+        (code, file_id),
+    )
     conn.commit()
 
+
 def get_movie(code: str):
-    """Kino faylini kodi bo'yicha olish."""
     cursor.execute("SELECT file_id FROM movies WHERE code = ?", (code,))
     row = cursor.fetchone()
     return row[0] if row else None
+
 
 async def get_unsubscribed_channels(user_id: int) -> list:
     unsubscribed = []
@@ -94,24 +103,27 @@ async def get_unsubscribed_channels(user_id: int) -> list:
             unsubscribed.append(channel)
     return unsubscribed
 
+
 def get_sub_keyboard(unsubscribed_channels: list) -> InlineKeyboardMarkup:
     keyboard = []
     for ch in unsubscribed_channels:
         keyboard.append([InlineKeyboardButton(text=f"📢 {ch['name']}", url=ch["url"])])
-    keyboard.append([InlineKeyboardButton(text="✅ Obunani tekshirish", callback_data="check_subscription")])
+    keyboard.append(
+        [InlineKeyboardButton(text="✅ Obunani tekshirish", callback_data="check_subscription")]
+    )
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
+
 def admin_keyboard():
-    """Admin menyusi tugmalari."""
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="📊 Statistika"), KeyboardButton(text="📢 Xabar tarqatish")]
         ],
-        resize_keyboard=True
+        resize_keyboard=True,
     )
 
-# --- HANDLERLAR ---
 
+# --- HANDLERLAR ---
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
     add_user(message.from_user.id)
@@ -119,7 +131,7 @@ async def start_cmd(message: types.Message):
     if message.from_user.id == ADMIN_ID:
         await message.answer(
             f"Salom, Admin {message.from_user.first_name}!\nAdmin paneldan foydalanishingiz mumkin:",
-            reply_markup=admin_keyboard()
+            reply_markup=admin_keyboard(),
         )
     else:
         await message.answer(
@@ -127,8 +139,8 @@ async def start_cmd(message: types.Message):
             "Kino ko'rish uchun **kino kodini** kiriting:"
         )
 
-# --- ADMIN PANEL FUNKSIYALARI ---
 
+# --- ADMIN PANEL ---
 @dp.message(F.text == "📊 Statistika", F.from_user.id == ADMIN_ID)
 async def stats_handler(message: types.Message):
     users_count, movies_count = get_stats()
@@ -136,21 +148,25 @@ async def stats_handler(message: types.Message):
         f"📊 **Bot Statistikasi:**\n\n"
         f"👥 Foydalanuvchilar: **{users_count} ta**\n"
         f"🎬 Joylangan kinolar: **{movies_count} ta**",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
     )
+
 
 @dp.message(F.text == "📢 Xabar tarqatish", F.from_user.id == ADMIN_ID)
 async def broadcast_start(message: types.Message, state: FSMContext):
     await state.set_state(BroadcastState.waiting_for_message)
     await message.answer(
-        "Foydalanuvchilarga yubormoqchi bo'lgan xabaringizni kiriting (Matn, Rasm, Video yoki Post):\n\n"
+        "Foydalanuvchilarga yubormoqchi bo'lgan xabaringizni kiriting "
+        "(Matn, Rasm, Video yoki Post):\n\n"
         "*(Bekor qilish uchun /cancel buyrug'ini yuboring)*"
     )
+
 
 @dp.message(Command("cancel"), BroadcastState.waiting_for_message)
 async def broadcast_cancel(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("❌ Xabar tarqatish bekor qilindi.", reply_markup=admin_keyboard())
+
 
 @dp.message(BroadcastState.waiting_for_message, F.from_user.id == ADMIN_ID)
 async def broadcast_send(message: types.Message, state: FSMContext):
@@ -161,7 +177,6 @@ async def broadcast_send(message: types.Message, state: FSMContext):
 
     success = 0
     failed = 0
-
     status_msg = await message.answer("⏳ Xabar tarqatish boshlandi...")
 
     for user in users:
@@ -169,7 +184,7 @@ async def broadcast_send(message: types.Message, state: FSMContext):
         try:
             await message.copy_to(chat_id=user_id)
             success += 1
-            await asyncio.sleep(0.05)  # Telegram spam limitiga tushmaslik uchun kichik tanaffus
+            await asyncio.sleep(0.05)
         except (TelegramForbiddenError, TelegramBadRequest):
             failed += 1
         except Exception:
@@ -179,8 +194,9 @@ async def broadcast_send(message: types.Message, state: FSMContext):
         f"✅ **Xabar tarqatish yakunlandi!**\n\n"
         f"🟢 Yuborildi: **{success}** ta\n"
         f"🔴 Etib bormadi (block qilgan): **{failed}** ta",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
     )
+
 
 # --- ADMIN: KINO QO'SHISH ---
 @dp.message(F.video & (F.from_user.id == ADMIN_ID))
@@ -190,12 +206,16 @@ async def add_movie_handler(message: types.Message):
 
     if caption and caption.isdigit():
         add_movie(caption, file_id)
-        await message.reply(f"✅ Kino bazaga saqlandi!\nKod: `{caption}`", parse_mode="Markdown")
+        await message.reply(
+            f"✅ Kino bazaga saqlandi!\nKod: `{caption}`", parse_mode="Markdown"
+        )
     else:
-        await message.reply("⚠️ Videoga (caption) faqat **raqamli kod** yozib yuboring! Masalan: 101")
+        await message.reply(
+            "⚠️ Videoga (caption) faqat **raqamli kod** yozib yuboring! Masalan: 101"
+        )
 
-# --- KINO KODINI QIDIRISH VA OBUNA TEKSHIRUV ---
 
+# --- OBUNA TEKSHIRUV ---
 @dp.callback_query(F.data == "check_subscription")
 async def check_sub_callback(call: types.CallbackQuery):
     unsubscribed = await get_unsubscribed_channels(call.from_user.id)
@@ -205,38 +225,55 @@ async def check_sub_callback(call: types.CallbackQuery):
     else:
         await call.answer("❌ Hali barcha kanallarga obuna bo'lmadingiz!", show_alert=True)
 
+
+# --- KINO KODINI QIDIRISH ---
 @dp.message(F.text)
 async def get_movie_handler(message: types.Message):
     add_user(message.from_user.id)
     code = message.text.strip()
 
-    # 1. Obuna tekshirish
     unsubscribed = await get_unsubscribed_channels(message.from_user.id)
     if unsubscribed:
         await message.answer(
             "⚠️ Kinoni yuklab olish uchun quyidagi kanallarga obuna bo'ling:",
-            reply_markup=get_sub_keyboard(unsubscribed)
+            reply_markup=get_sub_keyboard(unsubscribed),
         )
         return
 
-    # 2. Kod raqam ekanligini tekshirish
     if not code.isdigit():
         await message.answer("Iltimos, faqat kino kodini kiriting!")
         return
 
-    # 3. Bazadan qidirish
     file_id = get_movie(code)
     if file_id:
         await message.answer_video(video=file_id, caption=f"🎬 Siz so'ragan kino (Kod: {code})")
     else:
         await message.answer("❌ Bu kod bo'yicha kino topilmadi.")
 
+
+# --- WEB SERVER (Render health check uchun) ---
 async def handle(request):
     return web.Response(text="Bot 24/7 faol ishlamoqda!")
 
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Web server {port}-portda ishga tushdi")
+
+
 async def main():
     print("Bot va Admin Panel ishga tushdi...")
+    # Web serverni parallel ishga tushirish
+    await start_web_server()
+    # Botni polling rejimida ishga tushirish
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
