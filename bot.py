@@ -18,7 +18,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8915091466:AAEFRagvpxXnao-TqfznNz3Y3npPdjfWwAY")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8915091466:AAEJIi7G8mP7PZ-zvQ3Ye0agmWBGKSQr-ts")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "6449321994"))
 
 # --- KANALLAR RO'YXATI ---
