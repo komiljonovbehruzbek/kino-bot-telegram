@@ -23,12 +23,12 @@ CHANNELS = [
     {
         "id": -1004489090250,
         "name": "1-Kanal (Kino Olam)",
-        "url": "https://t.me/kino_olam_channel"
+        "url": "https://t.me/+_CKO-gy8fPQ4OWE6"
     },
     {
         "id": -1002198373500,
-        "name": "2-Kanal (Film Zone)",
-        "url": "https://t.me/film_zone_channel"
+        "name": "2-Kanal (Shaxsiy)",
+        "url": "https://t.me/dasturlash_nam"
     }
 ]
 
